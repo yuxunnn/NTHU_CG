@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include<math.h>
+#include <math.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "textfile.h"
@@ -244,7 +244,7 @@ void drawPlane()
 }
 
 // Render function for display rendering
-void RenderScene(void) {	
+void RenderScene(void) {
 	// clear canvas
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -284,7 +284,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	// [TODO] mouse press callback function
-		
+
 }
 
 static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
@@ -336,8 +336,8 @@ void setShaders()
 	p = glCreateProgram();
 
 	// attach shaders to program object
-	glAttachShader(p,f);
-	glAttachShader(p,v);
+	glAttachShader(p, f);
+	glAttachShader(p, v);
 
 	// link program
 	glLinkProgram(p);
@@ -355,11 +355,11 @@ void setShaders()
 
 	if (success)
 		glUseProgram(p);
-    else
-    {
-        system("pause");
-        exit(123);
-    }
+	else
+	{
+		system("pause");
+		exit(123);
+	}
 }
 
 void normalization(tinyobj::attrib_t* attrib, vector<GLfloat>& vertices, vector<GLfloat>& colors, tinyobj::shape_t* shape)
@@ -455,7 +455,7 @@ void normalization(tinyobj::attrib_t* attrib, vector<GLfloat>& vertices, vector<
 	for (int i = 0; i < attrib->vertices.size(); i++)
 	{
 		//std::cout << i << " = " << (double)(attrib.vertices.at(i) / greatestAxis) << std::endl;
-		attrib->vertices.at(i) = attrib->vertices.at(i)/ scale;
+		attrib->vertices.at(i) = attrib->vertices.at(i) / scale;
 	}
 	size_t index_offset = 0;
 	vertices.reserve(shape->mesh.num_face_vertices.size() * 3);
@@ -505,7 +505,7 @@ void LoadModels(string model_path)
 	}
 
 	printf("Load Models Success ! Shapes size %d Maerial size %d\n", shapes.size(), materials.size());
-	
+
 	normalization(&attrib, vertices, colors, &shapes[0]);
 
 	Shape tmp_shape;
@@ -562,7 +562,7 @@ void setupRC()
 
 	// OpenGL States and Values
 	glClearColor(0.2, 0.2, 0.2, 1.0);
-	vector<string> model_list{ "../ColorModels/bunny5KC.obj", "../ColorModels/dragon10KC.obj", "../ColorModels/lucy25KC.obj", "../ColorModels/teapot4KC.obj", "../ColorModels/dolphinC.obj"};
+	vector<string> model_list{ "../ColorModels/bunny5KC.obj", "../ColorModels/dragon10KC.obj", "../ColorModels/lucy25KC.obj", "../ColorModels/teapot4KC.obj", "../ColorModels/dolphinC.obj" };
 	// [TODO] Load five model at here
 	LoadModels(model_list[cur_idx]);
 }
@@ -588,59 +588,59 @@ void glPrintContextInfo(bool printExtension)
 
 int main(int argc, char **argv)
 {
-    // initial glfw
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
+	// initial glfw
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
 #ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // fix compilation on OS X
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // fix compilation on OS X
 #endif
 
-    
-    // create window
+
+	// create window
 	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Student ID HW1", NULL, NULL);
-    if (window == NULL)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    
-    
-    // load OpenGL function pointer
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
-    
+	if (window == NULL)
+	{
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
+
+
+	// load OpenGL function pointer
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
+	}
+
 	// register glfw callback functions
-    glfwSetKeyCallback(window, KeyCallback);
+	glfwSetKeyCallback(window, KeyCallback);
 	glfwSetScrollCallback(window, scroll_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetCursorPosCallback(window, cursor_pos_callback);
 
-    glfwSetFramebufferSizeCallback(window, ChangeSize);
+	glfwSetFramebufferSizeCallback(window, ChangeSize);
 	glEnable(GL_DEPTH_TEST);
 	// Setup render context
 	setupRC();
 
 	// main loop
-    while (!glfwWindowShouldClose(window))
-    {
-        // render
-        RenderScene();
-        
-        // swap buffer from back to front
-        glfwSwapBuffers(window);
-        
-        // Poll input event
-        glfwPollEvents();
-    }
-	
+	while (!glfwWindowShouldClose(window))
+	{
+		// render
+		RenderScene();
+
+		// swap buffer from back to front
+		glfwSwapBuffers(window);
+
+		// Poll input event
+		glfwPollEvents();
+	}
+
 	// just for compatibiliy purposes
 	return 0;
 }
