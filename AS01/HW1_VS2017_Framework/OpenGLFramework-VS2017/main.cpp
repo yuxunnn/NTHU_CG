@@ -294,7 +294,10 @@ void setPerspective()
 	cur_proj_mode = Perspective;
 	// project_matrix [...] = ...
 	GLfloat near = proj.nearClip, far = proj.farClip;
+
 	GLfloat f = 1 / tan(proj.fovy * PI / 180.0 / 2);
+
+	f = f / proj.top * min(proj.top, proj.right);
 
 	project_matrix = Matrix4(
 		f / proj.aspect, 0, 0, 0,
@@ -572,42 +575,42 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 	// [TODO] cursor position callback function
 	if (mouse_pressed == true) {
 		int width, height;
-		int x_diff = xpos - starting_press_x;
-		int y_diff = ypos - starting_press_y;
-
 		glfwGetWindowSize(window, &width, &height);
+
+		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)width;
+		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)height;
 
 		switch (cur_trans_mode){
 			case GeoTranslation:
-				models[cur_idx].position.x += (float) x_diff * 2 / width;
-				models[cur_idx].position.y += (float) -y_diff * 2 / height;
+				models[cur_idx].position.x += (float)x_diff;
+				models[cur_idx].position.y += (float)-y_diff;
 
 				break;
 			case GeoRotation:
-				models[cur_idx].rotation.y += (float) -x_diff * 2 / width * 360;
-				models[cur_idx].rotation.x += (float) -y_diff * 2 / height * 360;
+				models[cur_idx].rotation.y += (float)-x_diff * 360.0;
+				models[cur_idx].rotation.x += (float)-y_diff * 360.0;
 
 				break;
 			case GeoScaling:
-				models[cur_idx].scale.x += (float) -x_diff * 2 / width;
-				models[cur_idx].scale.y += (float) -y_diff * 2 / height;
+				models[cur_idx].scale.x += (float)-x_diff;
+				models[cur_idx].scale.y += (float)-y_diff;
 
 				break;
 			case ViewEye:
-				main_camera.position.x += (float) -x_diff * 2 / width;
-				main_camera.position.y += (float) y_diff * 2 / height;
+				main_camera.position.x += (float)-x_diff;
+				main_camera.position.y += (float)y_diff;
 				setViewingMatrix();
 
 				break;
 			case ViewCenter:
-				main_camera.center.x += (float) -x_diff * 2 / width;
-				main_camera.center.y += (float) -y_diff * 2 / height;
+				main_camera.center.x += (float)-x_diff;
+				main_camera.center.y += (float)-y_diff;
 				setViewingMatrix();
 
 				break;
 			case ViewUp:
-				main_camera.up_vector.x += (float) -x_diff * 2 / width;
-				main_camera.up_vector.y += (float) -y_diff * 2 / height;
+				main_camera.up_vector.x += (float)-x_diff;
+				main_camera.up_vector.y += (float)-y_diff;
 				setViewingMatrix();
 
 				break;
