@@ -12,6 +12,8 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#define PI 3.14159265358979323846
+
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
 # define min(a,b) (((a)<(b))?(a):(b))
@@ -129,6 +131,12 @@ Matrix4 translate(Vector3 vec)
 		...
 	);
 	*/
+	mat = Matrix4(
+		1, 0, 0, vec.x,
+		0, 1, 0, vec.y,
+		0, 0, 1, vec.z,
+		0, 0, 0, 1
+	);
 
 	return mat;
 }
@@ -143,6 +151,12 @@ Matrix4 scaling(Vector3 vec)
 		...
 	);
 	*/
+	mat = Matrix4(
+		vec.x, 0, 0, 0,
+		0, vec.y, 0, 0,
+		0, 0, vec.z, 0,
+		0, 0, 0, 1
+	);
 
 	return mat;
 }
@@ -158,6 +172,14 @@ Matrix4 rotateX(GLfloat val)
 		...
 	);
 	*/
+	val = val * PI / 180.0;
+
+	mat = Matrix4(
+		1, 0, 0, 0,
+		0, cos(val), -sin(val), 0,
+		0, sin(val), cos(val), 0,
+		0, 0, 0, 1
+	);
 
 	return mat;
 }
@@ -172,6 +194,14 @@ Matrix4 rotateY(GLfloat val)
 		...
 	);
 	*/
+	val = val * PI / 180.0;
+
+	mat = Matrix4(
+		cos(val), 0, sin(val), 0,
+		0, 1, 0, 0,
+		-sin(val), 0, cos(val), 0,
+		0, 0, 0, 1
+	);
 
 	return mat;
 }
@@ -186,6 +216,14 @@ Matrix4 rotateZ(GLfloat val)
 		...
 	);
 	*/
+	val = val * PI / 180.0;
+
+	mat = Matrix4(
+		cos(val), -sin(val), 0, 0,
+		sin(val), cos(val), 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	);
 
 	return mat;
 }
@@ -199,6 +237,39 @@ Matrix4 rotate(Vector3 vec)
 void setViewingMatrix()
 {
 	// view_matrix[...] = ...
+	// Translate eye position to the origin
+	Matrix4 T = Matrix4(
+		1, 0, 0, -main_camera.position.x,
+		0, 1, 0, -main_camera.position.y,
+		0, 0, 1, -main_camera.position.z,
+		0, 0, 0, 1
+	);
+
+	// Find the bases with respect to the new space
+	Vector3 view_direction = main_camera.center - main_camera.position;
+	Vector3 up_direction = main_camera.up_vector;
+	GLfloat P1P2[3] = { view_direction.x, view_direction.y, view_direction.z };
+	GLfloat P1P3[3] = { up_direction.x, up_direction.y, up_direction.z };
+
+	Normalize(P1P2);
+	Normalize(P1P3);
+
+	GLfloat Rx[3], Ry[3], Rz[3];
+
+	for (int i = 0; i < 3; i++) {
+		Rz[i] = -P1P2[i];
+	}
+	Cross(P1P2, P1P3, Rx);
+	Cross(Rz, Rx, Ry);
+
+	Matrix4 R = Matrix4(
+		Rx[0], Rx[1], Rx[2], 0,
+		Ry[0], Ry[1], Ry[2], 0,
+		Rz[0], Rz[1], Rz[2], 0,
+		0, 0, 0, 1
+	);
+
+	view_matrix = R * T;
 }
 
 // [TODO] compute persepective projection matrix
@@ -206,6 +277,18 @@ void setPerspective()
 {
 	// GLfloat f = ...
 	// project_matrix [...] = ...
+	GLfloat near = proj.nearClip, far = proj.farClip;
+
+	GLfloat f = 1 / tan(proj.fovy * PI / 180.0 / 2);
+
+	f = f / proj.top * min(proj.top, proj.right);
+
+	project_matrix = Matrix4(
+		f / proj.aspect, 0, 0, 0,
+		0, f, 0, 0,
+		0, 0, (far + near) / (near - far), 2 * far * near / (near - far),
+		0, 0, -1, 0
+	);
 }
 
 void setGLMatrix(GLfloat* glm, Matrix4& m) {
@@ -223,6 +306,13 @@ void ChangeSize(GLFWwindow* window, int width, int height)
 {
 	glViewport(0, 0, width, height);
 	// [TODO] change your aspect ratio
+	proj.left = -1 * (float)width / (float)min(width, height);
+	proj.right = 1 * (float)width / (float)min(width, height);
+	proj.top = 1 * (float)height / (float)min(width, height);
+	proj.bottom = -1 * (float)height / (float)min(width, height);
+	proj.aspect = (float)width / (float)height;
+
+	setPerspective();
 }
 
 // Render function for display rendering
@@ -232,11 +322,16 @@ void RenderScene(void) {
 
 	Matrix4 T, R, S;
 	// [TODO] update translation, rotation and scaling
+	T = translate(models[cur_idx].position);
+	R = rotate(models[cur_idx].rotation);
+	S = scaling(models[cur_idx].scale);
 
 	Matrix4 MVP;
 	GLfloat mvp[16];
 
 	// [TODO] multiply all the matrix
+	MVP = project_matrix * view_matrix * T * R * S;
+
 	// row-major ---> column-major
 	setGLMatrix(mvp, MVP);
 
@@ -255,22 +350,144 @@ void RenderScene(void) {
 void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	// [TODO] Call back function for keyboard
+	if (action == GLFW_PRESS) {
+		switch (key) {
+		case GLFW_KEY_W:
+			//cout << "switch between solid and wireframe mode" << endl;
+
+			GLint polygonMode;
+			glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
+
+			if (polygonMode == GL_FILL) {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			}
+			else {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
+
+			break;
+		case GLFW_KEY_Z:
+			//cout << "switch the model" << endl;
+
+			cur_idx += models.size() - 1;
+			cur_idx %= models.size();
+
+			break;
+		case GLFW_KEY_X:
+			//cout << "switch the model" << endl;
+
+			cur_idx += 1;
+			cur_idx %= models.size();
+
+			break;
+		case GLFW_KEY_T:
+			//cout << "switch to translation mode" << endl;
+			cur_trans_mode = GeoTranslation;
+
+			break;
+		case GLFW_KEY_S:
+			//cout << "switch to scale mode" << endl;
+			cur_trans_mode = GeoScaling;
+
+			break;
+		case GLFW_KEY_R:
+			//cout << "switch to rotation mode" << endl;
+			cur_trans_mode = GeoRotation;
+
+			break;
+		case GLFW_KEY_I:
+			cout << "Translation Matrix:" << endl;
+			cout << translate(models[cur_idx].position) << endl;
+			cout << "Rotation Matrix:" << endl;
+			cout << rotate(models[cur_idx].rotation) << endl;
+			cout << "Scaling Matrix:" << endl;
+			cout << scaling(models[cur_idx].scale) << endl;
+			cout << "Viewing Matrix:" << endl;
+			cout << view_matrix << endl;
+			cout << "Projection Matrix:" << endl;
+			cout << project_matrix << endl;
+
+			break;
+		case GLFW_KEY_H:
+			cout << "W: switch between solid and wireframe mode" << endl;
+			cout << "Z/X: switch the model" << endl;
+			cout << "T: switch to translation mode" << endl;
+			cout << "S: switch to scale mode" << endl;
+			cout << "R: switch to rotation mode" << endl;
+			cout << "I: print information" << endl;
+
+			break;
+		default:
+			break;
+		}
+	}
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
 	// [TODO] scroll up positive, otherwise it would be negtive
+	switch (cur_trans_mode) {
+		case GeoTranslation:
+			models[cur_idx].position.z += (float)yoffset * 0.1;
+
+			break;
+		case GeoRotation:
+			models[cur_idx].rotation.z += (float)yoffset * 360 * 0.01;
+
+			break;
+		case GeoScaling:
+			models[cur_idx].scale.z += (float)yoffset * 0.1;
+
+			break;
+		default:
+			break;
+	}
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	// [TODO] mouse press callback function
-		
+	if (action == GLFW_PRESS) {
+		mouse_pressed = true;
+	}
+	else if (action == GLFW_RELEASE) {
+		mouse_pressed = false;
+	}
 }
 
 static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
 	// [TODO] cursor position callback function
+	if (mouse_pressed == true) {
+		int width, height;
+		glfwGetWindowSize(window, &width, &height);
+
+		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)width;
+		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)height;
+
+		switch (cur_trans_mode) {
+			case GeoTranslation:
+				models[cur_idx].position.x += (float)x_diff;
+				models[cur_idx].position.y += (float)-y_diff;
+
+				break;
+			case GeoRotation:
+				models[cur_idx].rotation.y += (float)-x_diff * 360.0;
+				models[cur_idx].rotation.x += (float)-y_diff * 360.0;
+
+				break;
+			case GeoScaling:
+				models[cur_idx].scale.x += (float)-x_diff;
+				models[cur_idx].scale.y += (float)-y_diff;
+
+				break;
+			default:
+				break;
+		}
+	}
+
+	starting_press_x = xpos;
+	starting_press_y = ypos;
 }
 
 void setShaders()
@@ -590,7 +807,9 @@ void setupRC()
 	glClearColor(0.2, 0.2, 0.2, 1.0);
 	vector<string> model_list{ "../NormalModels/bunny5KN.obj", "../NormalModels/dragon10KN.obj", "../NormalModels/lucy25KN.obj", "../NormalModels/teapot4KN.obj", "../NormalModels/dolphinN.obj"};
 	// [TODO] Load five model at here
-	LoadModels(model_list[cur_idx]);
+	for (int i = 0; i < model_list.size(); i++) {
+		LoadModels(model_list[i]);
+	}
 }
 
 void glPrintContextInfo(bool printExtension)
@@ -626,7 +845,7 @@ int main(int argc, char **argv)
 
     
     // create window
-	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Student ID HW2", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "109062134_HW2", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
