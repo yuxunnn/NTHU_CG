@@ -24,6 +24,8 @@ using namespace std;
 // Default window size
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
+int curr_window_width = WINDOW_WIDTH;
+int curr_window_height = WINDOW_HEIGHT;
 
 bool mouse_pressed = false;
 int starting_press_x = -1;
@@ -307,6 +309,13 @@ void setPerspective()
 	);
 }
 
+void setGLMatrix(GLfloat* glm, Matrix4& m) {
+	glm[0] = m[0];  glm[4] = m[1];   glm[8] = m[2];    glm[12] = m[3];
+	glm[1] = m[4];  glm[5] = m[5];   glm[9] = m[6];    glm[13] = m[7];
+	glm[2] = m[8];  glm[6] = m[9];   glm[10] = m[10];   glm[14] = m[11];
+	glm[3] = m[12];  glm[7] = m[13];  glm[11] = m[14];   glm[15] = m[15];
+}
+
 
 // Vertex buffers
 GLuint VAO, VBO;
@@ -321,6 +330,9 @@ void ChangeSize(GLFWwindow* window, int width, int height)
 	proj.top = 1 * (float)height / (float)min(width, height);
 	proj.bottom = -1 * (float)height / (float)min(width, height);
 	proj.aspect = (float)width / (float)height;
+
+	curr_window_width = width;
+	curr_window_height = height;
 
 	if (cur_proj_mode == Perspective) {
 		setPerspective();
@@ -341,10 +353,7 @@ void drawPlane()
 
 	MVP = project_matrix * view_matrix;
 	// [TODO] row-major ---> column-major
-	mvp[0] = MVP[0];  mvp[4] = MVP[1];   mvp[8] = MVP[2];    mvp[12] = MVP[3];
-	mvp[1] = MVP[4];  mvp[5] = MVP[5];   mvp[9] = MVP[6];    mvp[13] = MVP[7];
-	mvp[2] = MVP[8];  mvp[6] = MVP[9];   mvp[10] = MVP[10];  mvp[14] = MVP[11];
-	mvp[3] = MVP[12]; mvp[7] = MVP[13];  mvp[11] = MVP[14];  mvp[15] = MVP[15];
+	setGLMatrix(mvp, MVP);
 
 	glUniformMatrix4fv(iLocMVP, 1, GL_FALSE, mvp);
 
@@ -403,10 +412,7 @@ void RenderScene(void) {
 	MVP = project_matrix * view_matrix * T * R * S;
 
 	// [TODO] row-major ---> column-major
-	mvp[0] = MVP[0];  mvp[4] = MVP[1];   mvp[8] = MVP[2];    mvp[12] = MVP[3];
-	mvp[1] = MVP[4];  mvp[5] = MVP[5];   mvp[9] = MVP[6];    mvp[13] = MVP[7];
-	mvp[2] = MVP[8];  mvp[6] = MVP[9];   mvp[10] = MVP[10];  mvp[14] = MVP[11];
-	mvp[3] = MVP[12]; mvp[7] = MVP[13];  mvp[11] = MVP[14];  mvp[15] = MVP[15];
+	setGLMatrix(mvp, MVP);
 
 	// use uniform to send mvp to vertex shader
 	glUniformMatrix4fv(iLocMVP, 1, GL_FALSE, mvp);
@@ -423,8 +429,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	if (action == GLFW_PRESS) {
 		switch (key) {
 			case GLFW_KEY_W:
-				//cout << "switch between solid and wireframe mode" << endl;
-
 				GLint polygonMode; 
 				glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
 
@@ -434,61 +438,38 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 				else {
 					glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 				}
-
 				break;
 			case GLFW_KEY_Z:
-				//cout << "switch the model" << endl;
-
 				cur_idx += models.size() - 1;
 				cur_idx %= models.size();
-
 				break;
 			case GLFW_KEY_X:
-				//cout << "switch the model" << endl;
-
 				cur_idx += 1;
 				cur_idx %= models.size();
-
 				break;
 			case GLFW_KEY_O:
-				//cout << "switch to Orthogonal projection" << endl;
 				setOrthogonal();
-
 				break;
 			case GLFW_KEY_P:
-				//cout << "switch to NDC Perspective projection" << endl;
 				setPerspective();
-
 				break;
 			case GLFW_KEY_T:
-				//cout << "switch to translation mode" << endl;
 				cur_trans_mode = GeoTranslation;
-				
 				break;
 			case GLFW_KEY_S:
-				//cout << "switch to scale mode" << endl;
 				cur_trans_mode = GeoScaling;
-
 				break;
 			case GLFW_KEY_R:
-				//cout << "switch to rotation mode" << endl;
 				cur_trans_mode = GeoRotation;
-
 				break;
 			case GLFW_KEY_E:
-				//cout << "switch to translate eye position mode" << endl;
 				cur_trans_mode = ViewEye;
-
 				break;
 			case GLFW_KEY_C:
-				//cout << "switch to translate viewing center position mode" << endl;
 				cur_trans_mode = ViewCenter;
-
 				break;
 			case GLFW_KEY_U:
-				//cout << "switch to translate camera up vector position mode" << endl;
 				cur_trans_mode = ViewUp;
-
 				break;
 			case GLFW_KEY_I:
 				cout << "Translation Matrix:" << endl;
@@ -501,7 +482,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 				cout << view_matrix << endl;
 				cout << "Projection Matrix:" << endl;
 				cout << project_matrix << endl;
-
 				break;
 			case GLFW_KEY_H:
 				cout << "W: switch between solid and wireframe mode" << endl;
@@ -515,7 +495,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 				cout << "C: switch to translate viewing center position mode" << endl;
 				cout << "U: switch to translate camera up vector position mode" << endl;
 				cout << "I: print information" << endl;
-
 				break;
 			default:
 				break;
@@ -529,30 +508,24 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	switch (cur_trans_mode) {
 		case GeoTranslation:
 			models[cur_idx].position.z += (float) yoffset * 0.1;
-
 			break;
 		case GeoRotation:
 			models[cur_idx].rotation.z += (float) yoffset * 360 * 0.01;
-
 			break;
 		case GeoScaling:
 			models[cur_idx].scale.z += (float) yoffset * 0.1;
-
 			break;
 		case ViewEye:
 			main_camera.position.z += (float) -yoffset * 0.1;
 			setViewingMatrix();
-
 			break;
 		case ViewCenter:
 			main_camera.center.z += (float) yoffset * 0.1;
 			setViewingMatrix();
-
 			break;
 		case ViewUp:
 			main_camera.up_vector.z += (float) yoffset * 0.1;
 			setViewingMatrix();
-
 			break;
 		default:
 			break;
@@ -574,45 +547,36 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
 	// [TODO] cursor position callback function
 	if (mouse_pressed == true) {
-		int width, height;
-		glfwGetWindowSize(window, &width, &height);
-
-		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)width;
-		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)height;
+		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)curr_window_width;
+		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)curr_window_height;
 
 		switch (cur_trans_mode){
 			case GeoTranslation:
 				models[cur_idx].position.x += (float)x_diff;
 				models[cur_idx].position.y += (float)-y_diff;
-
 				break;
 			case GeoRotation:
 				models[cur_idx].rotation.y += (float)-x_diff * 360.0;
 				models[cur_idx].rotation.x += (float)-y_diff * 360.0;
-
 				break;
 			case GeoScaling:
 				models[cur_idx].scale.x += (float)-x_diff;
 				models[cur_idx].scale.y += (float)-y_diff;
-
 				break;
 			case ViewEye:
 				main_camera.position.x += (float)-x_diff;
 				main_camera.position.y += (float)y_diff;
 				setViewingMatrix();
-
 				break;
 			case ViewCenter:
 				main_camera.center.x += (float)-x_diff;
 				main_camera.center.y += (float)-y_diff;
 				setViewingMatrix();
-
 				break;
 			case ViewUp:
 				main_camera.up_vector.x += (float)-x_diff;
 				main_camera.up_vector.y += (float)-y_diff;
 				setViewingMatrix();
-
 				break;
 			default:
 				break;
