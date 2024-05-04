@@ -24,6 +24,8 @@ using namespace std;
 // Default window size
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
+int curr_window_width = WINDOW_WIDTH;
+int curr_window_height = WINDOW_HEIGHT;
 
 bool mouse_pressed = false;
 int starting_press_x = -1;
@@ -312,6 +314,9 @@ void ChangeSize(GLFWwindow* window, int width, int height)
 	proj.bottom = -1 * (float)height / (float)min(width, height);
 	proj.aspect = (float)width / (float)height;
 
+	curr_window_width = width;
+	curr_window_height = height;
+
 	setPerspective();
 }
 
@@ -341,6 +346,10 @@ void RenderScene(void) {
 	{
 		// set glViewport and draw twice ... 
 		glBindVertexArray(models[cur_idx].shapes[i].vao);
+
+		glViewport(0, 0, curr_window_width / 2, curr_window_height);
+		glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
+		glViewport(curr_window_width / 2, 0, curr_window_width / 2, curr_window_height);
 		glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
 	}
 
@@ -353,8 +362,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	if (action == GLFW_PRESS) {
 		switch (key) {
 		case GLFW_KEY_W:
-			//cout << "switch between solid and wireframe mode" << endl;
-
 			GLint polygonMode;
 			glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
 
@@ -364,36 +371,23 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			else {
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
-
 			break;
 		case GLFW_KEY_Z:
-			//cout << "switch the model" << endl;
-
 			cur_idx += models.size() - 1;
 			cur_idx %= models.size();
-
 			break;
 		case GLFW_KEY_X:
-			//cout << "switch the model" << endl;
-
 			cur_idx += 1;
 			cur_idx %= models.size();
-
 			break;
 		case GLFW_KEY_T:
-			//cout << "switch to translation mode" << endl;
 			cur_trans_mode = GeoTranslation;
-
 			break;
 		case GLFW_KEY_S:
-			//cout << "switch to scale mode" << endl;
 			cur_trans_mode = GeoScaling;
-
 			break;
 		case GLFW_KEY_R:
-			//cout << "switch to rotation mode" << endl;
 			cur_trans_mode = GeoRotation;
-
 			break;
 		case GLFW_KEY_I:
 			cout << "Translation Matrix:" << endl;
@@ -406,7 +400,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			cout << view_matrix << endl;
 			cout << "Projection Matrix:" << endl;
 			cout << project_matrix << endl;
-
 			break;
 		case GLFW_KEY_H:
 			cout << "W: switch between solid and wireframe mode" << endl;
@@ -415,7 +408,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			cout << "S: switch to scale mode" << endl;
 			cout << "R: switch to rotation mode" << endl;
 			cout << "I: print information" << endl;
-
 			break;
 		default:
 			break;
@@ -429,15 +421,12 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 	switch (cur_trans_mode) {
 		case GeoTranslation:
 			models[cur_idx].position.z += (float)yoffset * 0.1;
-
 			break;
 		case GeoRotation:
 			models[cur_idx].rotation.z += (float)yoffset * 360 * 0.01;
-
 			break;
 		case GeoScaling:
 			models[cur_idx].scale.z += (float)yoffset * 0.1;
-
 			break;
 		default:
 			break;
@@ -459,27 +448,21 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
 	// [TODO] cursor position callback function
 	if (mouse_pressed == true) {
-		int width, height;
-		glfwGetWindowSize(window, &width, &height);
-
-		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)width;
-		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)height;
+		GLfloat x_diff = (float)(xpos - starting_press_x) * 2.0 / (float)curr_window_width;
+		GLfloat y_diff = (float)(ypos - starting_press_y) * 2.0 / (float)curr_window_height;
 
 		switch (cur_trans_mode) {
 			case GeoTranslation:
 				models[cur_idx].position.x += (float)x_diff;
 				models[cur_idx].position.y += (float)-y_diff;
-
 				break;
 			case GeoRotation:
 				models[cur_idx].rotation.y += (float)-x_diff * 360.0;
 				models[cur_idx].rotation.x += (float)-y_diff * 360.0;
-
 				break;
 			case GeoScaling:
 				models[cur_idx].scale.x += (float)-x_diff;
 				models[cur_idx].scale.y += (float)-y_diff;
-
 				break;
 			default:
 				break;
