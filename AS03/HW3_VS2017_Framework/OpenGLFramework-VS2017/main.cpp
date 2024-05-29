@@ -15,6 +15,13 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#define PI 3.14159265358979323846
+#define DIRECTIONALLIGHT 0
+#define POINTLIGHT 1
+#define SPOTLIGHT 2
+#define PERVERTEXLIGHTING 0
+#define PERPIXELLIGHTING 1
+
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
 # define min(a,b) (((a)<(b))?(a):(b))
@@ -40,8 +47,100 @@ enum TransMode
 	ViewCenter = 3,
 	ViewEye = 4,
 	ViewUp = 5,
+	LightEdit = 6,
+	ShininessEdit = 7,
 };
 
+int lightSource = DIRECTIONALLIGHT;
+
+struct Uniform
+{
+	GLuint iLocTex;
+	
+	GLint iLocLightSource;	// directional light, point light, spot light
+	GLint iLocLightingMode; // per-vertex, per-pixel
+
+	GLint iLocModelMatrix;
+	GLint iLocViewMatrix;
+	GLint iLocProjectionMatrix;
+
+	GLint iLocDirectionalPosition;
+	GLint iLocDirectionalDirection;
+	GLint iLocDirectionalAmbientIntensity;
+	GLint iLocDirectionalDiffuseIntensity;
+	GLint iLocDirectionalSpecularIntensity;
+	GLint iLocDirectionalShininess;
+
+	GLint iLocPointPosition;
+	GLint iLocPointAmbientIntensity;
+	GLint iLocPointDiffuseIntensity;
+	GLint iLocPointSpecularIntensity;
+	GLint iLocPointShininess;
+	GLint iLocPointConstant;
+	GLint iLocPointLinear;
+	GLint iLocPointQuadratic;
+
+	GLint iLocSpotPosition;
+	GLint iLocSpotDirection;
+	GLint iLocSpotExponent;
+	GLint iLocSpotCutoff;
+	GLint iLocSpotAmbientIntensity;
+	GLint iLocSpotDiffuseIntensity;
+	GLint iLocSpotSpecularIntensity;
+	GLint iLocSpotShininess;
+	GLint iLocSpotConstant;
+	GLint iLocSpotLinear;
+	GLint iLocSpotQuadratic;
+
+	GLint iLocKa;
+	GLint iLocKd;
+	GLint iLocKs;
+
+	GLint iLocCameraPosition;	
+};
+Uniform uniform;
+
+struct DirectionalLight
+{
+	Vector3 position = Vector3(1, 1, 1);
+	Vector3 direction = Vector3(0, 0, 0);
+	Vector3 diffuse_intensity = Vector3(1, 1, 1);
+	Vector3 ambient_intensity = Vector3(0.15, 0.15, 0.15);
+	Vector3 specular_intensity = Vector3(1, 1, 1);
+	GLfloat shininess = 64;
+};
+DirectionalLight directional_light;
+
+struct PointLight
+{
+	Vector3 position = Vector3(0, 2, 1);
+	Vector3 diffuse_intensity = Vector3(1, 1, 1);
+	Vector3 ambient_intensity = Vector3(0.15, 0.15, 0.15);
+	Vector3 specular_intensity = Vector3(1, 1, 1);
+	GLfloat shininess = 64;
+	// attenuation
+	GLfloat constant = 0.01;
+	GLfloat linear = 0.8;
+	GLfloat quadratic = 0.1;
+};
+PointLight point_light;
+
+struct SpotLight
+{
+	Vector3 position = Vector3(0, 0, 2);
+	Vector3 direction = Vector3(0, 0, -1);
+	GLfloat exponent = 50;
+	GLfloat cutoff = 30; // degree
+	Vector3 diffuse_intensity = Vector3(1, 1, 1);
+	Vector3 ambient_intensity = Vector3(0.15, 0.15, 0.15);
+	Vector3 specular_intensity = Vector3(1, 1, 1);
+	GLfloat shininess = 64;
+	// attenuation
+	GLfloat constant = 0.05;
+	GLfloat linear = 0.3;
+	GLfloat quadratic = 0.6;
+};
+SpotLight spot_light;
 
 vector<string> filenames; // .obj filename list
 
@@ -120,6 +219,8 @@ enum ProjMode
 };
 ProjMode cur_proj_mode = Orthogonal;
 TransMode cur_trans_mode = GeoTranslation;
+int mag_filtering_mode = 0;
+int min_filtering_mode = 0;
 
 Matrix4 view_matrix;
 Matrix4 project_matrix;
@@ -131,11 +232,6 @@ vector<string> model_list{ "../TextureModels/Fushigidane.obj", "../TextureModels
 
 GLuint program;
 
-
-// uniforms location
-GLuint iLocP;
-GLuint iLocV;
-GLuint iLocM;
 
 static GLvoid Normalize(GLfloat v[3])
 {
@@ -340,16 +436,66 @@ void RenderScene(int per_vertex_or_per_pixel) {
 
 	// render object
 	Matrix4 model_matrix = T * R * S;
-	glUniformMatrix4fv(iLocM, 1, GL_FALSE, model_matrix.getTranspose());
-	glUniformMatrix4fv(iLocV, 1, GL_FALSE, view_matrix.getTranspose());
-	glUniformMatrix4fv(iLocP, 1, GL_FALSE, project_matrix.getTranspose());
+
+	glUniform1i(uniform.iLocLightSource, lightSource);
+	glUniform1i(uniform.iLocLightingMode, per_vertex_or_per_pixel);
+
+	glUniformMatrix4fv(uniform.iLocModelMatrix, 1, GL_FALSE, model_matrix.getTranspose());
+	glUniformMatrix4fv(uniform.iLocViewMatrix, 1, GL_FALSE, view_matrix.getTranspose());
+	glUniformMatrix4fv(uniform.iLocProjectionMatrix, 1, GL_FALSE, project_matrix.getTranspose());
+
+	glUniform3f(uniform.iLocDirectionalPosition, directional_light.position.x, directional_light.position.y, directional_light.position.z);
+	glUniform3f(uniform.iLocDirectionalDirection, directional_light.direction.x, directional_light.direction.y, directional_light.direction.z);
+	glUniform3f(uniform.iLocDirectionalAmbientIntensity, directional_light.ambient_intensity.x, directional_light.ambient_intensity.y, directional_light.ambient_intensity.z);
+	glUniform3f(uniform.iLocDirectionalDiffuseIntensity, directional_light.diffuse_intensity.x, directional_light.diffuse_intensity.y, directional_light.diffuse_intensity.z);
+	glUniform3f(uniform.iLocDirectionalSpecularIntensity, directional_light.specular_intensity.x, directional_light.specular_intensity.y, directional_light.specular_intensity.z);
+	glUniform1f(uniform.iLocDirectionalShininess, directional_light.shininess);
+
+	glUniform3f(uniform.iLocPointPosition, point_light.position.x, point_light.position.y, point_light.position.z);
+	glUniform3f(uniform.iLocPointAmbientIntensity, point_light.ambient_intensity.x, point_light.ambient_intensity.y, point_light.ambient_intensity.z);
+	glUniform3f(uniform.iLocPointDiffuseIntensity, point_light.diffuse_intensity.x, point_light.diffuse_intensity.y, point_light.diffuse_intensity.z);
+	glUniform3f(uniform.iLocPointSpecularIntensity, point_light.specular_intensity.x, point_light.specular_intensity.y, point_light.specular_intensity.z);
+	glUniform1f(uniform.iLocPointShininess, point_light.shininess);
+	glUniform1f(uniform.iLocPointConstant, point_light.constant);
+	glUniform1f(uniform.iLocPointLinear, point_light.linear);
+	glUniform1f(uniform.iLocPointQuadratic, point_light.quadratic);
+
+	glUniform3f(uniform.iLocSpotPosition, spot_light.position.x, spot_light.position.y, spot_light.position.z);
+	glUniform3f(uniform.iLocSpotDirection, spot_light.direction.x, spot_light.direction.y, spot_light.direction.z);
+	glUniform1f(uniform.iLocSpotExponent, spot_light.exponent);
+	glUniform1f(uniform.iLocSpotCutoff, spot_light.cutoff);
+	glUniform3f(uniform.iLocSpotAmbientIntensity, spot_light.ambient_intensity.x, spot_light.ambient_intensity.y, spot_light.ambient_intensity.z);
+	glUniform3f(uniform.iLocSpotDiffuseIntensity, spot_light.diffuse_intensity.x, spot_light.diffuse_intensity.y, spot_light.diffuse_intensity.z);
+	glUniform3f(uniform.iLocSpotSpecularIntensity, spot_light.specular_intensity.x, spot_light.specular_intensity.y, spot_light.specular_intensity.z);
+	glUniform1f(uniform.iLocSpotShininess, spot_light.shininess);
+	glUniform1f(uniform.iLocSpotConstant, spot_light.constant);
+	glUniform1f(uniform.iLocSpotLinear, spot_light.linear);
+	glUniform1f(uniform.iLocSpotQuadratic, spot_light.quadratic);
+
+	glUniform3f(uniform.iLocCameraPosition, main_camera.position.x, main_camera.position.y, main_camera.position.z);
 
 	for (int i = 0; i < models[cur_idx].shapes.size(); i++) 
 	{
+		glUniform3f(uniform.iLocKa, models[cur_idx].shapes[i].material.Ka.x, models[cur_idx].shapes[i].material.Ka.y, models[cur_idx].shapes[i].material.Ka.z);
+		glUniform3f(uniform.iLocKd, models[cur_idx].shapes[i].material.Kd.x, models[cur_idx].shapes[i].material.Kd.y, models[cur_idx].shapes[i].material.Kd.z);
+		glUniform3f(uniform.iLocKs, models[cur_idx].shapes[i].material.Ks.x, models[cur_idx].shapes[i].material.Ks.y, models[cur_idx].shapes[i].material.Ks.z);
 		glBindVertexArray(models[cur_idx].shapes[i].vao);
 
 		// [TODO] Bind texture and modify texture filtering & wrapping mode
 		// Hint: glActiveTexture, glBindTexture, glTexParameteri
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, models[cur_idx].shapes[i].material.diffuseTexture);
+
+		if (mag_filtering_mode == 0) {
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		} else {
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		}
+		if (min_filtering_mode == 0) {
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		} else {
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		}
 
 		glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
 	}
@@ -404,8 +550,40 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		case GLFW_KEY_U:
 			cur_trans_mode = ViewUp;
 			break;
+		case GLFW_KEY_L:
+			lightSource += 1;
+			lightSource %= 3;
+			break;
+		case GLFW_KEY_K:
+			cur_trans_mode = LightEdit;
+			break;
+		case GLFW_KEY_J:
+			cur_trans_mode = ShininessEdit;
+			break;
+		case GLFW_KEY_G:
+			mag_filtering_mode = (mag_filtering_mode + 1) % 2;
+			break;
+		case GLFW_KEY_B:
+			min_filtering_mode = (min_filtering_mode + 1) % 2;
+			break;
 		case GLFW_KEY_I:
 			cout << endl;
+			break;
+		case GLFW_KEY_H:
+			cout << "Z/X: switch the model" << endl;
+			cout << "O: switch to Orthogonal projection" << endl;
+			cout << "P: switch to NDC Perspective projection" << endl;
+			cout << "T: switch to translation mode" << endl;
+			cout << "S: switch to scale mode" << endl;
+			cout << "R: switch to rotation mode" << endl;
+			cout << "E: switch to translate eye position mode" << endl;
+			cout << "C: switch to translate viewing center position mode" << endl;
+			cout << "U: switch to translate camera up vector position mode" << endl;
+			cout << "L: switch between directional/point/spot light" << endl;
+			cout << "K: switch to light editing mode" << endl;
+			cout << "J: switch to shininess editing mode" << endl;
+			cout << "G: switch the magnification texture filtering mode between nearest / linear sampling" << endl;
+			cout << "B: switch the minification texture filtering mode between nearest / linear_mipmap_linear sampling" << endl;
 			break;
 		default:
 			break;
@@ -441,6 +619,26 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 		break;
 	case GeoRotation:
 		models[cur_idx].rotation.z += (acosf(-1.0f) / 180.0) * 5 * (float)yoffset;
+		break;
+	case LightEdit:
+		if (lightSource == DIRECTIONALLIGHT) {
+			directional_light.diffuse_intensity.x += (float)yoffset * 0.1;
+			directional_light.diffuse_intensity.y += (float)yoffset * 0.1;
+			directional_light.diffuse_intensity.z += (float)yoffset * 0.1;
+		}
+		else if (lightSource == POINTLIGHT) {
+			point_light.diffuse_intensity.x += (float)yoffset * 0.1;
+			point_light.diffuse_intensity.y += (float)yoffset * 0.1;
+			point_light.diffuse_intensity.z += (float)yoffset * 0.1;
+		}
+		else if (lightSource == SPOTLIGHT) {
+			spot_light.cutoff += (float)yoffset * 360 * 0.01;
+		}
+		break;
+	case ShininessEdit:
+		directional_light.shininess += (float)yoffset;
+		point_light.shininess += (float)yoffset;
+		spot_light.shininess += (float)yoffset;
 		break;
 	}
 }
@@ -500,6 +698,20 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 			case GeoRotation:
 				models[cur_idx].rotation.x += acosf(-1.0f) / 180.0*diff_y*(45.0 / 400.0);
 				models[cur_idx].rotation.y += acosf(-1.0f) / 180.0*diff_x*(45.0 / 400.0);
+				break;
+			case LightEdit:
+				if (lightSource == DIRECTIONALLIGHT) {
+					directional_light.position.x += (float)diff_x * (1.0 / 400.0);
+					directional_light.position.y += (float)-diff_y * (1.0 / 400.0);
+				}
+				else if (lightSource == POINTLIGHT) {
+					point_light.position.x += (float)diff_x * (1.0 / 400.0);
+					point_light.position.y += (float)-diff_y * (1.0 / 400.0);
+				}
+				else if (lightSource == SPOTLIGHT) {
+					spot_light.position.x += (float)diff_x * (1.0 / 400.0);
+					spot_light.position.y += (float)-diff_y * (1.0 / 400.0);
+				}
 				break;
 			}
 		}
@@ -718,6 +930,10 @@ GLuint LoadTextureImage(string image_path)
 
 		// [TODO] Bind the image to texture
 		// Hint: glGenTextures, glBindTexture, glTexImage2D, glGenerateMipmap
+		glGenTextures(1, &tex);
+		glBindTexture(GL_TEXTURE_2D, tex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
 
 		// free the image from memory after binding to texture
 		stbi_image_free(data);
@@ -899,11 +1115,50 @@ void initParameter()
 
 void setUniformVariables()
 {
-	iLocP = glGetUniformLocation(program, "um4p");
-	iLocV = glGetUniformLocation(program, "um4v");
-	iLocM = glGetUniformLocation(program, "um4m");
+	uniform.iLocLightSource = glGetUniformLocation(program, "lightSource");
+	uniform.iLocLightingMode = glGetUniformLocation(program, "lightingMode");
+
+	uniform.iLocModelMatrix = glGetUniformLocation(program, "modelMatrix");
+	uniform.iLocViewMatrix = glGetUniformLocation(program, "viewMatrix");
+	uniform.iLocProjectionMatrix = glGetUniformLocation(program, "projectionMatrix");
+
+	uniform.iLocDirectionalPosition = glGetUniformLocation(program, "directionalLight_position");
+	uniform.iLocDirectionalDirection = glGetUniformLocation(program, "directionalLight_direction");
+	uniform.iLocDirectionalAmbientIntensity = glGetUniformLocation(program, "directionalLight_ambientIntensity");
+	uniform.iLocDirectionalDiffuseIntensity = glGetUniformLocation(program, "directionalLight_diffuseIntensity");
+	uniform.iLocDirectionalSpecularIntensity = glGetUniformLocation(program, "directionalLight_specularIntensity");
+	uniform.iLocDirectionalShininess = glGetUniformLocation(program, "directionalLight_shininess");
+
+	uniform.iLocPointPosition = glGetUniformLocation(program, "pointLight_position");
+	uniform.iLocPointAmbientIntensity = glGetUniformLocation(program, "pointLight_ambientIntensity");
+	uniform.iLocPointDiffuseIntensity = glGetUniformLocation(program, "pointLight_diffuseIntensity");
+	uniform.iLocPointSpecularIntensity = glGetUniformLocation(program, "pointLight_specularIntensity");
+	uniform.iLocPointShininess = glGetUniformLocation(program, "pointLight_shininess");
+	uniform.iLocPointConstant = glGetUniformLocation(program, "pointLight_constant");
+	uniform.iLocPointLinear = glGetUniformLocation(program, "pointLight_linear");
+	uniform.iLocPointQuadratic = glGetUniformLocation(program, "pointLight_quadratic");
+
+	uniform.iLocSpotPosition = glGetUniformLocation(program, "spotLight_position");
+	uniform.iLocSpotDirection = glGetUniformLocation(program, "spotLight_direction");
+	uniform.iLocSpotExponent = glGetUniformLocation(program, "spotLight_exponent");
+	uniform.iLocSpotCutoff = glGetUniformLocation(program, "spotLight_cutoff");
+	uniform.iLocSpotAmbientIntensity = glGetUniformLocation(program, "spotLight_ambientIntensity");
+	uniform.iLocSpotDiffuseIntensity = glGetUniformLocation(program, "spotLight_diffuseIntensity");
+	uniform.iLocSpotSpecularIntensity = glGetUniformLocation(program, "spotLight_specularIntensity");
+	uniform.iLocSpotShininess = glGetUniformLocation(program, "spotLight_shininess");
+	uniform.iLocSpotConstant = glGetUniformLocation(program, "spotLight_constant");
+	uniform.iLocSpotLinear = glGetUniformLocation(program, "spotLight_linear");
+	uniform.iLocSpotQuadratic = glGetUniformLocation(program, "spotLight_quadratic");
+
+	uniform.iLocKa = glGetUniformLocation(program, "Ka");
+	uniform.iLocKd = glGetUniformLocation(program, "Kd");
+	uniform.iLocKs = glGetUniformLocation(program, "Ks");
+
+	uniform.iLocCameraPosition = glGetUniformLocation(program, "camera_position");
 
 	// [TODO] Get uniform location of texture
+	uniform.iLocTex = glGetUniformLocation(program, "tex");
+	glUniform1i(uniform.iLocTex, 0);
 }
 
 void setupRC()
@@ -955,7 +1210,7 @@ int main(int argc, char **argv)
 
     
     // create window
-	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Student ID HW3", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "109062134_HW3", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -992,10 +1247,10 @@ int main(int argc, char **argv)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		// render left view
 		glViewport(0, 0, screenWidth / 2, screenHeight);
-        RenderScene(1);
+        RenderScene(PERVERTEXLIGHTING);
 		// render right view
 		glViewport(screenWidth / 2, 0, screenWidth / 2, screenHeight);
-		RenderScene(0);
+		RenderScene(PERPIXELLIGHTING);
         
         // swap buffer from back to front
         glfwSwapBuffers(window);
