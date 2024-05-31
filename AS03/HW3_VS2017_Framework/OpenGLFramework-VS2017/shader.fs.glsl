@@ -167,6 +167,7 @@ vec3 SpotLight() {
 // [TODO] passing texture from main.cpp
 // Hint: sampler2D
 uniform sampler2D tex;
+uniform vec2 offset;
 
 void main() {
 
@@ -191,5 +192,5 @@ void main() {
 	}
 	// [TODO] sampleing from texture
 	// Hint: texture
-	FragColor = texture(tex, texCoord) * FragColor;
+	FragColor = texture(tex, texCoord + offset) * FragColor;
 }

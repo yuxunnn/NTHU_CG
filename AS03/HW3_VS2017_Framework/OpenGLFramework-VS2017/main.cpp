@@ -56,6 +56,7 @@ int lightSource = DIRECTIONALLIGHT;
 struct Uniform
 {
 	GLuint iLocTex;
+	GLint iLocOffset;
 	
 	GLint iLocLightSource;	// directional light, point light, spot light
 	GLint iLocLightingMode; // per-vertex, per-pixel
@@ -427,8 +428,6 @@ void Vector3ToFloat4(Vector3 v, GLfloat res[4])
 
 // Render function for display rendering
 void RenderScene(int per_vertex_or_per_pixel) {	
-	Vector3 modelPos = models[cur_idx].position;
-
 	Matrix4 T, R, S;
 	T = translate(models[cur_idx].position);
 	R = rotate(models[cur_idx].rotation);
@@ -496,6 +495,15 @@ void RenderScene(int per_vertex_or_per_pixel) {
 		} else {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		}
+
+		if (models[cur_idx].shapes[i].material.isEye == 1) {
+			glUniform2f(uniform.iLocOffset, models[cur_idx].shapes[i].material.offsets[models[cur_idx].cur_eye_offset_idx].x, models[cur_idx].shapes[i].material.offsets[models[cur_idx].cur_eye_offset_idx].y);
+		} else {
+			glUniform2f(uniform.iLocOffset, 0.0, 0.0);
+		}
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 		glDrawArrays(GL_TRIANGLES, 0, models[cur_idx].shapes[i].vertex_count);
 	}
@@ -566,6 +574,15 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		case GLFW_KEY_B:
 			min_filtering_mode = (min_filtering_mode + 1) % 2;
 			break;
+		case GLFW_KEY_RIGHT:
+			models[cur_idx].cur_eye_offset_idx += 1;
+			models[cur_idx].cur_eye_offset_idx %= models[cur_idx].max_eye_offset;
+			break;
+		case GLFW_KEY_LEFT:
+			models[cur_idx].cur_eye_offset_idx -= 1;
+			models[cur_idx].cur_eye_offset_idx += models[cur_idx].max_eye_offset;
+			models[cur_idx].cur_eye_offset_idx %= models[cur_idx].max_eye_offset;
+			break;
 		case GLFW_KEY_I:
 			cout << endl;
 			break;
@@ -584,6 +601,9 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			cout << "J: switch to shininess editing mode" << endl;
 			cout << "G: switch the magnification texture filtering mode between nearest / linear sampling" << endl;
 			cout << "B: switch the minification texture filtering mode between nearest / linear_mipmap_linear sampling" << endl;
+			cout << "->: change normal order (1-7)" << endl;
+			cout << "<-: change normal order (7-1)" << endl;
+			cout << endl;
 			break;
 		default:
 			break;
@@ -1068,6 +1088,16 @@ void LoadTexturedModels(string model_path)
 			system("pause");
 			
 		}
+
+		if (materials[i].diffuse_texname.find("Eye") != string::npos) {
+			material.isEye = 1;
+			material.offsets = {
+				Offset(0.0, 0.0), Offset(0.0, -0.25), Offset(0.0, -0.5), Offset(0.0, -0.75),
+				Offset(0.5, 0.0), Offset(0.5, -0.25), Offset(0.5, -0.5)
+			};
+		} else {
+			material.isEye = 0;
+		}
 		
 		allMaterial.push_back(material);
 	}
@@ -1159,6 +1189,7 @@ void setUniformVariables()
 	// [TODO] Get uniform location of texture
 	uniform.iLocTex = glGetUniformLocation(program, "tex");
 	glUniform1i(uniform.iLocTex, 0);
+	uniform.iLocOffset = glGetUniformLocation(program, "offset");
 }
 
 void setupRC()
